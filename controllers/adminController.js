@@ -12,16 +12,28 @@ module.exports = {
     },
 
     addCategory : async (req,res) => {
-        const {name} = req.body;
-        await Category.create({name});
-        res.redirect('/admin/category');
+        try {
+            const {name} = req.body;
+            await Category.create({name});
+            res.redirect('/admin/category');
+        } catch (error) {
+            res.redirect('/admin/category');
+        }
+        
     },
     
     editCategory : async (req, res) => {
         const{id, name} = req.body;
-        const category  = await Category.findOne({_id:id});
+        const category  = await Category.findOne({_id: id});
         category.name = name;
         await category.save();
+        res.redirect('/admin/category');
+    },
+
+    deleteCategory : async (req, res) => {
+        const {id} = req.params;
+        const category = await Category.findOne({_id: id});
+        await category.remove();
         res.redirect('/admin/category');
     },
 
