@@ -64,4 +64,15 @@
   </div>
 
  <%- include('add_modal.ejs') %>
+ <%- include('edit_modal.ejs') %>
  <%- include('../../partials/bootstapJs.ejs') %>
+
+ <script>
+   $('#dataCategory').on('click', '.button-update', function(){
+     let id   = $(this).data('id');
+     let name = $(this).data('name');
+     $('#edit-modal').modal('show');
+     $('.id').val(id);
+     $('.name').val(name);
+   })
+ </script>
