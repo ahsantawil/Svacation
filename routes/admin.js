@@ -1,7 +1,12 @@
 const router = require('express').Router();
 const adminController = require("../controllers/adminController");
 const { uploadMultiple, uploadSingle } = require("../middlewares/multer");
+const auth = require('../middlewares/auth');
 
+router.get('/signin', adminController.viewSignIn);
+router.post('/signin', adminController.actionSingIn);
+router.use(auth);
+router.get('/logout', adminController.actionLogout);
 router.get('/dashboard', adminController.viewDashboard);
 
 router.get('/category', adminController.viewCategory);
@@ -23,8 +28,16 @@ router.delete('/item/:id/delete', adminController.deleteItem);
 
 router.get('/item/show-detail-item/:itemId', adminController.viewDetailItem);
 router.post('/item/add/feature', uploadSingle, adminController.addFeature);
+router.put('/item/update/feature', uploadSingle, adminController.editFeature);
+router.delete('/item/:itemId/feature/:id', adminController.deleteFeature);
+
+router.post('/item/add/activity',uploadSingle, adminController.addActivity);
+router.put('/item/update/activity', uploadSingle, adminController.editActivity);
+router.delete('/item/:itemId/activity/:id', adminController.deleteActivity);
 
 router.get('/booking', adminController.viewBooking);
-
+router.get('/booking/:id', adminController.showDetailBooking);
+router.put('/booking/:id/confirmation', adminController.actionConfirmation);
+router.put('/booking/:id/reject', adminController.actionReject);
 
 module.exports = router;

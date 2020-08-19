@@ -3,16 +3,82 @@ const Bank      = require('../models/Bank');
 const Item      = require('../models/Item');
 const Image     = require('../models/Image');
 const Feature   = require('../models/Feature');
+const Activity  = require('../models/Activity');
+const Users     = require('../models/Users');
+const Booking   = require('../models/Booking');
+const Member   = require('../models/Member');
 
 const fs        = require('fs-extra');
 const path      = require('path');
+const bcrypt    = require('bcryptjs');
 
 
 module.exports = {
-    viewDashboard : (req, res) => {
-        res.render('admin/dashboard/view_dashboard', {
-            title : 'SVacation | Dashboard'
-        });
+    viewSignIn : async (req, res) => {
+        try {
+            const alertMessage  = req.flash('alertMessage');
+            const alertStatus   = req.flash('alertStatus');
+            const alert         = {message : alertMessage, status : alertStatus};
+            if (req.session.user == null || req.session.user == undefined) {
+                res.render('index', {
+                    alert,
+                    title : 'SVacation | Login'
+                }); 
+            } else {
+                res.redirect('/admin/dashboard');
+            }
+        } catch (error) {
+            res.redirect('/admin/signin');
+        }
+    },
+
+    actionSingIn : async (req, res) => {
+        try {
+            const {username, password} = req.body;
+            const user = await Users.findOne({ username: username }); 
+            if (!user) {
+                req.flash('alertMessage', 'User yang anda masukan tidak ada !!');
+                req.flash('alertStatus', 'danger');
+                res.redirect('/admin/signin');
+            }
+            const isPasswordMatch = await bcrypt.compare(password, user.password);
+            if (!isPasswordMatch) {
+                req.flash('alertMessage', 'Password yang anda masukan tidak cocok!!');
+                req.flash('alertStatus', 'danger');
+                res.redirect('/admin/signin');
+            }
+
+            req.session.user = {
+                id       : user.id,
+                username : user.username
+            }
+
+            res.redirect('/admin/dashboard');
+        } catch (error) {
+            res.redirect('/admin/signin');
+        }
+    },
+
+    actionLogout : (req, res) => {
+        req.session.destroy();
+        res.redirect('/admin/signin');
+    },
+
+    viewDashboard : async (req, res) => {
+        try {
+            const member    = await Member.find();
+            const booking   = await Booking.find();
+            const item      = await Item.find();
+            res.render('admin/dashboard/view_dashboard', {
+                title : 'SVacation | Dashboard',
+                user  : req.session.user,
+                member,
+                booking,
+                item
+            });
+        } catch (error) {
+            res.redirect('/admin/dashboard');
+        }
     },
 
     viewCategory : async (req, res) => {
@@ -24,7 +90,8 @@ module.exports = {
             res.render('admin/category/view_category', {
                 category,
                 alert,
-                title : 'SVacation | Category'
+                title : 'SVacation | Category',
+                user  : req.session.user
             });
         } catch (error) {
             res.redirect('/admin/category');
@@ -86,6 +153,7 @@ module.exports = {
             const alert         = {message : alertMessage, status : alertStatus};
             res.render('admin/bank/view_bank', {
                 title : 'SVacation | Bank',
+                user  : req.session.user,
                 alert,
                 bank
             });
@@ -170,6 +238,7 @@ module.exports = {
             const alert         = {message : alertMessage, status : alertStatus};
             res.render('admin/item/view_item', {
                 title : 'SVacation | Item',
+                user  : req.session.user,
                 category,
                 alert,
                 item,
@@ -221,6 +290,7 @@ module.exports = {
             const alert         = {message : alertMessage, status : alertStatus};
             res.render('admin/item/view_item', {
                 title : 'SVacation | Show Image Item',
+                user  : req.session.user,
                 alert,
                 item,
                 action : 'show image'
@@ -243,6 +313,7 @@ module.exports = {
             const alert         = {message : alertMessage, status : alertStatus};
             res.render('admin/item/view_item', {
                 title : 'SVacation | Edit Item',
+                user  : req.session.user,
                 alert,
                 item,
                 category,
@@ -326,10 +397,17 @@ module.exports = {
             const alertMessage  = req.flash('alertMessage');
             const alertStatus   = req.flash('alertStatus');
             const alert         = {message : alertMessage, status : alertStatus};
+            
+            const feature       = await Feature.find({ itemId: itemId});
+            const activity       = await Activity.find({ itemId: itemId});
+
             res.render('admin/item/detail_item/view_detail_item', {
                 title : 'Svacation | Detail Item',
+                user  : req.session.user,
                 alert,
-                itemId
+                itemId,
+                feature,
+                activity
             })
         } catch (error) {
             req.flash('alertMessage', `${error.message}`);
@@ -365,11 +443,198 @@ module.exports = {
             res.redirect(`/admin/item/show-detail-item/${itemId}`);
         }
     },
+    editFeature : async (req, res) => {
+        const {id, name, qty, itemId } = req.body;
+        try {
+            const feature = await Feature.findOne({ _id: id});
+            if (req.file == undefined){
+                feature.name      = name;
+                feature.qty       = qty;
+                await feature.save();
+                req.flash('alertMessage', 'Success Update Feature');
+                req.flash('alertStatus', 'success');
+                res.redirect(`/admin/item/show-detail-item/${itemId}`);
+            } else {
+                await fs.unlink(path.join(`public/${feature.imageUrl}`));
+                feature.name      = name;
+                feature.qty       = qty;
+                feature.imageUrl  = `images/${req.file.filename}`;
+                await feature.save();
+                req.flash('alertMessage', 'Success Update Feature');
+                req.flash('alertStatus', 'success');
+                res.redirect(`/admin/item/show-detail-item/${itemId}`);
+            } 
+        } catch (error) {
+            req.flash('alertMessage', `{$error.message}`);
+            req.flash('alertStatus', 'danger');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        }
+    },
+    deleteFeature : async(req, res) => {
+        const {id, itemId}  = req. params;
+        try {
+            const feature  = await Feature.findOne({ _id: id});
 
-    viewBooking : (req, res) => {
-        res.render('admin/booking/view_booking', {
-            title : 'SVacation | Booking'
-        });
+            const item     = await Item.findOne({ _id: itemId}).populate('featureId');
+            for (let i = 0; i < item.featureId.length; i++) {
+               if (item.featureId[i]._id.toString() === feature._id.toString()) {
+                   item.featureId.pull({ _id: feature._id });
+                   await item.save();
+               }
+            } 
+            await fs.unlink(path.join(`public/${feature.imageUrl}`));
+            await feature.remove();
+            req.flash('alertMessage', 'Success Delete Feature');
+            req.flash('alertStatus', 'success');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        } catch (error) {
+            req.flash('alertMessage', `{$error.message}`);
+            req.flash('alertStatus', 'danger');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        }
+    },
+
+    addActivity : async (req, res) => {
+        const { name, type, itemId } = req.body;
+
+        try {
+            if (!req.file) {
+                req.flash('alertMessage', 'Image Not Found');
+                req.flash('alertStatus', 'Danger');
+                res.redirect(`/admin/item/show-detail-item/${itemId}`);
+            }
+            const activity = await Activity.create({
+                name,
+                type,
+                itemId,
+                imageUrl : `images/${req.file.filename}`
+            });
+
+            const item = await Item.findOne({_id: itemId });
+            item.activityId.push({_id: activity._id});
+            await item.save();
+            req.flash('alertMessage', 'Success Add Activity');
+            req.flash('alertStatus', 'success');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        } catch (error) {
+            req.flash('alertMessage', `{$error.message}`);
+            req.flash('alertStatus', 'danger');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        }
+    },
+    editActivity : async (req, res) => {
+        const {id, name, type, itemId } = req.body;
+        try {
+            const activity = await Activity.findOne({ _id: id});
+            if (req.file == undefined){
+                activity.name      = name;
+                activity.type      = type;
+                await activity.save();
+                req.flash('alertMessage', 'Success Update Activity');
+                req.flash('alertStatus', 'success');
+                res.redirect(`/admin/item/show-detail-item/${itemId}`);
+            } else {
+                await fs.unlink(path.join(`public/${activity.imageUrl}`));
+                activity.name      = name;
+                activity.type      = type;
+                activity.imageUrl  = `images/${req.file.filename}`;
+                await activity.save();
+                req.flash('alertMessage', 'Success Update Activity');
+                req.flash('alertStatus', 'success');
+                res.redirect(`/admin/item/show-detail-item/${itemId}`);
+            } 
+        } catch (error) {
+            req.flash('alertMessage', `{$error.message}`);
+            req.flash('alertStatus', 'danger');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        }
+    },
+    deleteActivity : async(req, res) => {
+        const {id, itemId}  = req. params;
+        try {
+            const activity  = await Activity.findOne({ _id: id});
+
+            const item     = await Item.findOne({ _id: itemId}).populate('activityId');
+            for (let i = 0; i < item.activityId.length; i++) {
+               if (item.activityId[i]._id.toString() === activity._id.toString()) {
+                   item.activityId.pull({ _id: activity._id });
+                   await item.save();
+               }
+            } 
+            await fs.unlink(path.join(`public/${activity.imageUrl}`));
+            await activity.remove();
+            req.flash('alertMessage', 'Success Delete Activity');
+            req.flash('alertStatus', 'success');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        } catch (error) {
+            req.flash('alertMessage', `{$error.message}`);
+            req.flash('alertStatus', 'danger');
+            res.redirect(`/admin/item/show-detail-item/${itemId}`);
+        }
+    },
+
+    viewBooking : async(req, res) => {
+        
+        try {
+            const booking = await Booking.find()
+                .populate('memberId')
+                .populate('bankId');
+
+            res.render('admin/booking/view_booking', {
+                title : 'SVacation | Booking',
+                user  : req.session.user,
+                booking
+            });
+        } catch (error) {
+            res.redirect('/admin/booking');
+        }
+    },
+
+    showDetailBooking : async (req, res) => {
+        const { id } = req.params;
+        try {
+            const alertMessage  = req.flash('alertMessage');
+            const alertStatus   = req.flash('alertStatus');
+            const alert         = {message : alertMessage, status : alertStatus};
+            const booking = await Booking.findOne({ _id: id })
+                .populate('memberId')
+                .populate('bankId');
+
+            res.render('admin/booking/show_detail_booking', {
+                title : 'SVacation | Detail Booking',
+                user  : req.session.user,
+                booking,
+                alert
+            });
+        } catch (error) {
+            res.redirect('/admin/booking');
+        }
+    },
+    actionConfirmation : async (req, res) => {
+        const { id } = req.params;
+        try {
+            const booking = await Booking.findOne({ _id: id });
+            booking.payments.status = 'Accept';
+            req.flash('alertMessage', 'Success Confirmation Pembayaran');
+            req.flash('alertStatus', 'success');
+            await booking.save();
+            res.redirect(`/admin/booking/${id}`);
+        } catch (error) {
+            res.redirect(`/admin/booking/${id}`);
+        }
+    },
+    actionReject : async (req, res) => {
+        const { id } = req.params;
+        try {
+            const booking = await Booking.findOne({ _id: id });
+            booking.payments.status = 'Reject';
+            req.flash('alertMessage', 'Success Confirmation Pembayaran');
+            req.flash('alertStatus', 'success');
+            await booking.save();
+            res.redirect(`/admin/booking/${id}`);
+        } catch (error) {
+            res.redirect(`/admin/booking/${id}`);
+        }
     }
 }
 
