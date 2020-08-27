@@ -1064,12 +1064,12 @@ var data = [
       {
         _id: mongoose.Types.ObjectId('5e96cbe292b97300fc903345'),
         username: 'admin',
-        password: 'rahasia',
+        password: 'babakan01',
       },
       {
         _id: mongoose.Types.ObjectId('5e96cbe292b97300fc903346'),
         username: 'admin',
-        password: 'rahasia'
+        password: 'babakan01'
         // role: 'admin'
       },
     ]
